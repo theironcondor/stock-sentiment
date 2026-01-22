@@ -31,29 +31,45 @@ export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAn
     throw new Error("MISSING_API_KEY");
   }
 
-  // --- SANITIZATION START ---
-  // 1. Trim whitespace
-  apiKey = apiKey.trim();
+  // --- ROBUST SANITIZATION ---
+  // 1. Convert to string and trim
+  apiKey = String(apiKey).trim();
 
-  // 2. Remove wrapping quotes if present (e.g. "AIza..." or 'AIza...')
-  if ((apiKey.startsWith('"') && apiKey.endsWith('"')) || (apiKey.startsWith("'") && apiKey.endsWith("'"))) {
-    apiKey = apiKey.slice(1, -1);
-  }
+  // 2. Try to find the key using Regex (Standard Google API Key format: AIza + 35 chars)
+  // This handles cases like: "GEMINI_API_KEY: AIza...", "key='AIza...'", etc.
+  const keyRegex = /AIza[0-9A-Za-z\-_]{35}/;
+  const match = apiKey.match(keyRegex);
 
-  // 3. Handle common copy-paste error where user includes "KEY_NAME=" in the value
-  if (apiKey.includes("=") && !apiKey.startsWith("AIza")) {
-    const parts = apiKey.split("=");
-    // If the part after = looks like a key, use it
-    const potentialKey = parts[parts.length - 1].trim();
-    if (potentialKey.startsWith("AIza")) {
-      apiKey = potentialKey;
+  if (match) {
+    // Found a perfect match within the string
+    apiKey = match[0];
+  } else {
+    // 3. Fallback: If regex didn't match (maybe length is non-standard?), look for start index
+    const startIndex = apiKey.indexOf("AIza");
+    if (startIndex !== -1) {
+      // Cut everything before AIza
+      let tempKey = apiKey.substring(startIndex);
+      
+      // Cut everything after the first whitespace or non-key character
+      // Valid chars: A-Z, a-z, 0-9, -, _
+      const endIndex = tempKey.search(/[^A-Za-z0-9\-_]/);
+      if (endIndex !== -1) {
+        tempKey = tempKey.substring(0, endIndex);
+      }
+      
+      // If we have something that looks reasonable (e.g. > 20 chars), use it
+      if (tempKey.length > 20) {
+        apiKey = tempKey;
+      }
     }
   }
-  // --- SANITIZATION END ---
+  // --- END SANITIZATION ---
 
   // Basic format check
   if (!apiKey.startsWith("AIza")) {
-    console.error(`Sentix Error: Invalid API Key format. Received key starting with: '${apiKey.substring(0, 5)}...'`);
+    // Log first 5 chars to help debug (safe)
+    const safeLog = apiKey.length > 5 ? apiKey.substring(0, 5) : apiKey;
+    console.error(`Sentix Error: Invalid API Key format. Received key starting with: '${safeLog}...'`);
     throw new Error("INVALID_KEY_FORMAT");
   }
 
