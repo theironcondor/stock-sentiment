@@ -4,7 +4,7 @@ import { fetchMarketSentiment } from './services/gemini';
 import StockList from './components/StockList';
 import DetailPanel from './components/DetailPanel';
 import LeaderboardView from './components/LeaderboardView';
-import { RefreshCw, Terminal, LayoutDashboard, ListOrdered } from 'lucide-react';
+import { RefreshCw, Terminal, LayoutDashboard, ListOrdered, Key, AlertTriangle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [data, setData] = useState<MarketAnalysis | null>(null);
@@ -12,41 +12,106 @@ const App: React.FC = () => {
   const [error, setError] = useState<React.ReactNode | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSentiment | null>(null);
   const [view, setView] = useState<'dashboard' | 'leaderboard'>('dashboard');
+  const [manualKey, setManualKey] = useState<string>('');
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (keyOverride?: string) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchMarketSentiment();
+      // Use the key passed in, or the one in state, or undefined (which falls back to env var)
+      const result = await fetchMarketSentiment(keyOverride || manualKey);
       setData(result);
-      // Default to first positive stock if available
       if (result.topPositive.length > 0 && !selectedStock) {
         setSelectedStock(result.topPositive[0]);
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("App Error Boundary:", err);
+      
+      let errorMessage = "An unexpected error occurred.";
+      let isKeyError = false;
+
       if (err.message === "MISSING_API_KEY") {
+        isKeyError = true;
+        errorMessage = "MISSING_API_KEY";
+      } else if (err.message === "INVALID_KEY_FORMAT") {
+        errorMessage = "The API Key format is invalid. It should start with 'AIza'.";
+        isKeyError = true;
+      } else if (err.message && err.message.includes("403")) {
+        errorMessage = "Access Denied (403). Your API Key might be invalid or has quota limits.";
+        isKeyError = true;
+      } else if (err.message && err.message.includes("400")) {
+        errorMessage = "Bad Request (400). Please check your API key.";
+        isKeyError = true;
+      } else {
+        errorMessage = err.message || "Failed to generate market analysis.";
+      }
+
+      if (isKeyError || errorMessage === "MISSING_API_KEY") {
         setError(
-          <div className="text-left">
-            <p className="font-bold text-red-400 mb-2">API Key Configuration Error</p>
-            <p className="mb-2">The app cannot find your <code>REACT_APP_API_KEY</code>.</p>
-            <ol className="list-decimal pl-5 space-y-1 text-sm text-gray-300">
-              <li>Go to Vercel Dashboard → Settings → Environment Variables.</li>
-              <li>Ensure <code>REACT_APP_API_KEY</code> is set correctly.</li>
-              <li><strong>IMPORTANT:</strong> Go to "Deployments" and click <strong>Redeploy</strong>.</li>
-            </ol>
-            <p className="mt-2 text-xs text-gray-400">Environment variables are only applied during the build process.</p>
+          <div className="text-left w-full">
+            <div className="flex items-center gap-2 mb-4 text-red-400">
+              <AlertTriangle size={24} />
+              <h3 className="text-lg font-bold">Authentication Failed</h3>
+            </div>
+            
+            {errorMessage !== "MISSING_API_KEY" && (
+              <p className="mb-4 text-red-300 bg-red-900/20 p-3 rounded border border-red-900/50 text-sm font-mono">
+                Error: {errorMessage}
+              </p>
+            )}
+
+            <p className="mb-4 text-gray-300">
+              The app could not find a valid API Key in the environment variables. 
+              This often happens if the deployment build step didn't pick up the variables.
+            </p>
+            
+            <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+              <label className="block text-sm font-medium text-gray-400 mb-2">
+                Enter Gemini API Key Manually
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Key size={14} className="text-gray-500" />
+                  </div>
+                  <input
+                    type="password"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-600 rounded-md leading-5 bg-gray-900 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="AIzaSy..."
+                    value={manualKey}
+                    onChange={(e) => setManualKey(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => loadData(manualKey)}
+                  className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!manualKey}
+                >
+                  Save & Retry
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                This key is used only for this session and is not stored on any server.
+              </p>
+            </div>
           </div>
         );
       } else {
-        setError("Failed to generate market analysis. The AI model might be busy or the search failed. Please try again.");
+        setError(
+          <div>
+             <p className="text-red-400 font-bold mb-2">System Error</p>
+             <p className="text-gray-400 text-sm font-mono mb-4">{errorMessage}</p>
+             <button onClick={() => loadData()} className="text-blue-400 hover:text-blue-300 underline">Try Again</button>
+          </div>
+        );
       }
     } finally {
       setLoading(false);
     }
-  }, [selectedStock]);
+  }, [manualKey, selectedStock]);
 
   useEffect(() => {
+    // Initial load
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -122,12 +187,9 @@ const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 p-6 overflow-hidden max-w-[1920px] mx-auto w-full">
         {error ? (
-          <div className="flex items-center justify-center h-[600px] border border-red-900/50 bg-red-900/10 rounded-2xl">
-            <div className="text-center max-w-lg">
-              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
-                 {error}
-              </div>
-              <button onClick={handleRefresh} className="mt-6 px-6 py-2 bg-blue-600 rounded hover:bg-blue-500 text-white font-medium">Retry Connection</button>
+          <div className="flex items-center justify-center h-[600px] border border-red-900/50 bg-red-900/10 rounded-2xl p-6">
+            <div className="text-center max-w-xl w-full">
+              {error}
             </div>
           </div>
         ) : loading && !data ? (

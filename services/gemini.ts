@@ -3,7 +3,7 @@ import { MarketAnalysis } from "../types";
 
 // Helper to safely find the API Key in different environments
 const getApiKey = (): string | undefined => {
-  // 1. Check standard process.env (Create React App, Webpack, Node)
+  // 1. Check standard process.env
   if (typeof process !== "undefined" && process.env) {
     const key = process.env.REACT_APP_API_KEY || 
                 process.env.VITE_API_KEY || 
@@ -12,7 +12,7 @@ const getApiKey = (): string | undefined => {
     if (key) return key;
   }
   
-  // 2. Check import.meta.env (Vite native)
+  // 2. Check import.meta.env
   // @ts-ignore
   if (typeof import.meta !== "undefined" && import.meta.env) {
     // @ts-ignore
@@ -23,17 +23,21 @@ const getApiKey = (): string | undefined => {
   return undefined;
 };
 
-export const fetchMarketSentiment = async (): Promise<MarketAnalysis> => {
-  const apiKey = getApiKey();
+export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAnalysis> => {
+  const apiKey = manualKey || getApiKey();
 
   if (!apiKey) {
-    console.error("Sentix Error: No API Key found in environment variables.");
+    console.error("Sentix Error: No API Key found.");
     throw new Error("MISSING_API_KEY");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  // Basic format check
+  if (!apiKey.startsWith("AIza")) {
+    console.error("Sentix Error: Invalid API Key format.");
+    throw new Error("INVALID_KEY_FORMAT");
+  }
 
-  // Gemini 3 Flash supports search and is fast for this type of aggregation
+  const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-flash-preview";
 
   const prompt = `
