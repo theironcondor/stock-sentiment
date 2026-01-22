@@ -1,89 +1,44 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MarketAnalysis } from "../types";
 
-// Helper to safely find the API Key in different environments
-const getApiKey = (): string | undefined => {
-  // 1. Check standard process.env
-  if (typeof process !== "undefined" && process.env) {
-    const key = process.env.REACT_APP_API_KEY || 
-                process.env.VITE_API_KEY || 
-                process.env.NEXT_PUBLIC_API_KEY || 
-                process.env.API_KEY;
-    if (key) return key;
-  }
-  
-  // 2. Check import.meta.env
-  // @ts-ignore
-  if (typeof import.meta !== "undefined" && import.meta.env) {
-    // @ts-ignore
-    const key = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY || import.meta.env.REACT_APP_API_KEY;
-    if (key) return key;
-  }
-  
-  return undefined;
-};
-
-export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAnalysis> => {
-  let rawKey = manualKey || getApiKey();
-
-  if (!rawKey) {
-    console.error("Sentix Error: No API Key found.");
+export const fetchMarketSentiment = async (): Promise<MarketAnalysis> => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
     throw new Error("MISSING_API_KEY");
   }
 
-  // --- AGGRESSIVE EXTRACTION ---
-  // Convert to string
-  const keyString = String(rawKey);
-
-  // Regex Explanation:
-  // AIza: Google API keys always start with this.
-  // [0-9A-Za-z\-_]{30,}: Followed by at least 30 alphanumeric, dash, or underscore characters.
-  // We utilize a greedy match to capture the whole key.
-  const googleKeyPattern = /(AIza[0-9A-Za-z\-_]{30,})/;
-  
-  const match = keyString.match(googleKeyPattern);
-  let finalKey = "";
-
-  if (match && match[0]) {
-    finalKey = match[0];
-  } else {
-    // Fallback: Just try to use the trimmed string if regex fails (unlikely for valid keys)
-    finalKey = keyString.trim();
-  }
-  // --- END EXTRACTION ---
-
-  // Final Validation
-  if (!finalKey.startsWith("AIza")) {
-    const obscured = keyString.substring(0, 5) + "...";
-    console.error(`Sentix Error: Could not extract valid 'AIza' key from input starting with: '${obscured}'`);
-    throw new Error("INVALID_KEY_FORMAT");
-  }
-
-  const ai = new GoogleGenAI({ apiKey: finalKey });
+  const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-flash-preview";
 
   const prompt = `
-    You are a real-time financial sentiment analysis engine.
+    You are a high-frequency financial sentiment analysis engine.
     
-    Step 1: Use Google Search to scan the last 7 days of data for S&P 500 and Nasdaq 100 stocks.
-    Step 2: Specifically look for discussions on:
-       - Twitter/X ($CASHTAGS)
-       - Reddit (r/wallstreetbets, r/stocks, r/investing)
-       - Mainstream Financial News (Bloomberg, CNBC, Reuters)
+    TASK:
+    Analyze the last 7 days of social sentiment for S&P 500 and Nasdaq 100 tickers.
+    Focus on: Twitter ($CASHTAGS), Reddit (r/wallstreetbets, r/investing), and Financial News.
+
+    OUTPUT:
+    Return a JSON object with:
+    1. 'topPositive': Top 10 stocks with highest bullish sentiment shift.
+    2. 'topNegative': Top 10 stocks with highest bearish sentiment shift.
     
-    Step 3: Identify the top 10 stocks with the most significant POSITIVE sentiment shifts and the top 10 with NEGATIVE sentiment shifts.
-    
-    For each stock found:
-    - Determine a composite sentiment score (-100 to 100).
-    - **Crucial**: Estimate separate sentiment scores for Twitter, Reddit, and News based on the tone of those specific search results.
-    - Estimate volume of discussion (low/med/high converted to a number 500-50000).
-    - Provide a short explanation (description).
-    - IMPORTANT: Include 2-3 specific "sources" (URLs) that justify this sentiment.
-    - Generate a "history" array of 90 numbers representing the trend.
-    
-    Rank Change Logic:
-    - If the stock is breaking news today, rank change is high (+10 to +50).
-    - If it's a lingering story, rank change is low (+/- 1-5).
+    For each stock:
+    - 'symbol': Ticker (e.g. NVDA)
+    - 'name': Company Name
+    - 'currentScore': Composite score (-100 to 100)
+    - 'change24h': Score change in last 24h
+    - 'change90d': Score change in last 90d
+    - 'rankChange': Change in leaderboard position (integer)
+    - 'volume': Estimated discussion volume (500-100000)
+    - 'description': One concise sentence explaining the *cause* of the sentiment.
+    - 'platformBreakdown': Sentiment scores (-100 to 100) for 'twitter', 'reddit', 'news'.
+    - 'sources': Array of 2-3 credible sources (title, url, domain).
+    - 'history': Array of 60 numbers representing daily sentiment score history (last 60 days).
+
+    IMPORTANT:
+    - Ensure 'sources' contains actual URLs found via Google Search.
+    - Be realistic with 'history' data to show trends.
+    - Prioritize "Movers" - stocks with news or earnings.
   `;
 
   try {
@@ -91,7 +46,7 @@ export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAn
       model,
       contents: prompt,
       config: {
-        tools: [{ googleSearch: {} }], // Enable real-world data access
+        tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -192,7 +147,7 @@ export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAn
 
     return JSON.parse(text) as MarketAnalysis;
   } catch (error) {
-    console.error("Failed to fetch sentiment data:", error);
+    console.error("Gemini Service Error:", error);
     throw error;
   }
 };
