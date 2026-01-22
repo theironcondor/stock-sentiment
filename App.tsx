@@ -19,7 +19,10 @@ const App: React.FC = () => {
     setError(null);
     try {
       // Use the key passed in, or the one in state, or undefined (which falls back to env var)
-      const result = await fetchMarketSentiment(keyOverride || manualKey);
+      // Trim inputs here as well to be safe
+      const keyToUse = (keyOverride || manualKey || '').trim();
+      const result = await fetchMarketSentiment(keyToUse || undefined);
+      
       setData(result);
       if (result.topPositive.length > 0 && !selectedStock) {
         setSelectedStock(result.topPositive[0]);
@@ -34,7 +37,7 @@ const App: React.FC = () => {
         isKeyError = true;
         errorMessage = "MISSING_API_KEY";
       } else if (err.message === "INVALID_KEY_FORMAT") {
-        errorMessage = "The API Key format is invalid. It should start with 'AIza'.";
+        errorMessage = "The API Key format is invalid. It should start with 'AIza' and have no spaces.";
         isKeyError = true;
       } else if (err.message && err.message.includes("403")) {
         errorMessage = "Access Denied (403). Your API Key might be invalid or has quota limits.";
@@ -61,8 +64,7 @@ const App: React.FC = () => {
             )}
 
             <p className="mb-4 text-gray-300">
-              The app could not find a valid API Key in the environment variables. 
-              This often happens if the deployment build step didn't pick up the variables.
+              The app could not find a valid API Key in the environment variables, or the key was malformed.
             </p>
             
             <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">

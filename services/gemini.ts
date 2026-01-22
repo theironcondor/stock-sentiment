@@ -24,16 +24,36 @@ const getApiKey = (): string | undefined => {
 };
 
 export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAnalysis> => {
-  const apiKey = manualKey || getApiKey();
+  let apiKey = manualKey || getApiKey();
 
   if (!apiKey) {
     console.error("Sentix Error: No API Key found.");
     throw new Error("MISSING_API_KEY");
   }
 
+  // --- SANITIZATION START ---
+  // 1. Trim whitespace
+  apiKey = apiKey.trim();
+
+  // 2. Remove wrapping quotes if present (e.g. "AIza..." or 'AIza...')
+  if ((apiKey.startsWith('"') && apiKey.endsWith('"')) || (apiKey.startsWith("'") && apiKey.endsWith("'"))) {
+    apiKey = apiKey.slice(1, -1);
+  }
+
+  // 3. Handle common copy-paste error where user includes "KEY_NAME=" in the value
+  if (apiKey.includes("=") && !apiKey.startsWith("AIza")) {
+    const parts = apiKey.split("=");
+    // If the part after = looks like a key, use it
+    const potentialKey = parts[parts.length - 1].trim();
+    if (potentialKey.startsWith("AIza")) {
+      apiKey = potentialKey;
+    }
+  }
+  // --- SANITIZATION END ---
+
   // Basic format check
   if (!apiKey.startsWith("AIza")) {
-    console.error("Sentix Error: Invalid API Key format.");
+    console.error(`Sentix Error: Invalid API Key format. Received key starting with: '${apiKey.substring(0, 5)}...'`);
     throw new Error("INVALID_KEY_FORMAT");
   }
 
