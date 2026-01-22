@@ -4,7 +4,7 @@ import { fetchMarketSentiment } from './services/gemini';
 import StockList from './components/StockList';
 import DetailPanel from './components/DetailPanel';
 import LeaderboardView from './components/LeaderboardView';
-import { RefreshCw, Terminal, LayoutDashboard, ListOrdered, Key, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Terminal, LayoutDashboard, ListOrdered, Key, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 
 const App: React.FC = () => {
   const [data, setData] = useState<MarketAnalysis | null>(null);
@@ -13,14 +13,15 @@ const App: React.FC = () => {
   const [selectedStock, setSelectedStock] = useState<StockSentiment | null>(null);
   const [view, setView] = useState<'dashboard' | 'leaderboard'>('dashboard');
   const [manualKey, setManualKey] = useState<string>('');
+  const [showKey, setShowKey] = useState<boolean>(false);
 
   const loadData = useCallback(async (keyOverride?: string) => {
     setLoading(true);
     setError(null);
     try {
       // Use the key passed in, or the one in state, or undefined (which falls back to env var)
-      // Trim inputs here as well to be safe
       const keyToUse = (keyOverride || manualKey || '').trim();
+      // Pass undefined if empty string to trigger env var lookup in service
       const result = await fetchMarketSentiment(keyToUse || undefined);
       
       setData(result);
@@ -37,7 +38,7 @@ const App: React.FC = () => {
         isKeyError = true;
         errorMessage = "MISSING_API_KEY";
       } else if (err.message === "INVALID_KEY_FORMAT") {
-        errorMessage = "The API Key format is invalid. It should start with 'AIza' and have no spaces.";
+        errorMessage = "The API Key format is invalid. It should start with 'AIza'.";
         isKeyError = true;
       } else if (err.message && err.message.includes("403")) {
         errorMessage = "Access Denied (403). Your API Key might be invalid or has quota limits.";
@@ -58,7 +59,7 @@ const App: React.FC = () => {
             </div>
             
             {errorMessage !== "MISSING_API_KEY" && (
-              <p className="mb-4 text-red-300 bg-red-900/20 p-3 rounded border border-red-900/50 text-sm font-mono">
+              <p className="mb-4 text-red-300 bg-red-900/20 p-3 rounded border border-red-900/50 text-sm font-mono break-all">
                 Error: {errorMessage}
               </p>
             )}
@@ -77,16 +78,19 @@ const App: React.FC = () => {
                     <Key size={14} className="text-gray-500" />
                   </div>
                   <input
-                    type="password"
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-600 rounded-md leading-5 bg-gray-900 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="AIzaSy..."
+                    type={showKey ? "text" : "password"}
+                    className="block w-full pl-10 pr-10 py-2 border border-gray-600 rounded-md leading-5 bg-gray-900 text-gray-300 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Paste full key string here..."
                     value={manualKey}
                     onChange={(e) => setManualKey(e.target.value)}
                   />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer" onClick={() => setShowKey(!showKey)}>
+                    {showKey ? <EyeOff size={14} className="text-gray-500" /> : <Eye size={14} className="text-gray-500" />}
+                  </div>
                 </div>
                 <button
                   onClick={() => loadData(manualKey)}
-                  className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   disabled={!manualKey}
                 >
                   Save & Retry

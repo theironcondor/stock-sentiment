@@ -24,56 +24,42 @@ const getApiKey = (): string | undefined => {
 };
 
 export const fetchMarketSentiment = async (manualKey?: string): Promise<MarketAnalysis> => {
-  let apiKey = manualKey || getApiKey();
+  let rawKey = manualKey || getApiKey();
 
-  if (!apiKey) {
+  if (!rawKey) {
     console.error("Sentix Error: No API Key found.");
     throw new Error("MISSING_API_KEY");
   }
 
-  // --- ROBUST SANITIZATION ---
-  // 1. Convert to string and trim
-  apiKey = String(apiKey).trim();
+  // --- AGGRESSIVE EXTRACTION ---
+  // Convert to string
+  const keyString = String(rawKey);
 
-  // 2. Try to find the key using Regex (Standard Google API Key format: AIza + 35 chars)
-  // This handles cases like: "GEMINI_API_KEY: AIza...", "key='AIza...'", etc.
-  const keyRegex = /AIza[0-9A-Za-z\-_]{35}/;
-  const match = apiKey.match(keyRegex);
+  // Regex Explanation:
+  // AIza: Google API keys always start with this.
+  // [0-9A-Za-z\-_]{30,}: Followed by at least 30 alphanumeric, dash, or underscore characters.
+  // We utilize a greedy match to capture the whole key.
+  const googleKeyPattern = /(AIza[0-9A-Za-z\-_]{30,})/;
+  
+  const match = keyString.match(googleKeyPattern);
+  let finalKey = "";
 
-  if (match) {
-    // Found a perfect match within the string
-    apiKey = match[0];
+  if (match && match[0]) {
+    finalKey = match[0];
   } else {
-    // 3. Fallback: If regex didn't match (maybe length is non-standard?), look for start index
-    const startIndex = apiKey.indexOf("AIza");
-    if (startIndex !== -1) {
-      // Cut everything before AIza
-      let tempKey = apiKey.substring(startIndex);
-      
-      // Cut everything after the first whitespace or non-key character
-      // Valid chars: A-Z, a-z, 0-9, -, _
-      const endIndex = tempKey.search(/[^A-Za-z0-9\-_]/);
-      if (endIndex !== -1) {
-        tempKey = tempKey.substring(0, endIndex);
-      }
-      
-      // If we have something that looks reasonable (e.g. > 20 chars), use it
-      if (tempKey.length > 20) {
-        apiKey = tempKey;
-      }
-    }
+    // Fallback: Just try to use the trimmed string if regex fails (unlikely for valid keys)
+    finalKey = keyString.trim();
   }
-  // --- END SANITIZATION ---
+  // --- END EXTRACTION ---
 
-  // Basic format check
-  if (!apiKey.startsWith("AIza")) {
-    // Log first 5 chars to help debug (safe)
-    const safeLog = apiKey.length > 5 ? apiKey.substring(0, 5) : apiKey;
-    console.error(`Sentix Error: Invalid API Key format. Received key starting with: '${safeLog}...'`);
+  // Final Validation
+  if (!finalKey.startsWith("AIza")) {
+    const obscured = keyString.substring(0, 5) + "...";
+    console.error(`Sentix Error: Could not extract valid 'AIza' key from input starting with: '${obscured}'`);
     throw new Error("INVALID_KEY_FORMAT");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = new GoogleGenAI({ apiKey: finalKey });
   const model = "gemini-3-flash-preview";
 
   const prompt = `
