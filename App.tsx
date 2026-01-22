@@ -23,8 +23,13 @@ const App: React.FC = () => {
       if (result.topPositive.length > 0 && !selectedStock) {
         setSelectedStock(result.topPositive[0]);
       }
-    } catch (err) {
-      setError("Failed to generate market analysis. Please verify your API Key and try again.");
+    } catch (err: any) {
+      console.error(err);
+      if (err.message && err.message.includes("API Key")) {
+        setError("Missing API Key. In Vercel, go to Settings > Environment Variables and add 'REACT_APP_API_KEY'.");
+      } else {
+        setError("Failed to generate market analysis. The AI model might be busy or the search failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -107,7 +112,7 @@ const App: React.FC = () => {
       <main className="flex-1 p-6 overflow-hidden max-w-[1920px] mx-auto w-full">
         {error ? (
           <div className="flex items-center justify-center h-[600px] border border-red-900/50 bg-red-900/10 rounded-2xl">
-            <div className="text-center">
+            <div className="text-center max-w-lg">
               <p className="text-red-400 font-mono mb-4">{error}</p>
               <button onClick={handleRefresh} className="text-white underline decoration-blue-500 underline-offset-4 hover:text-blue-400">Retry Connection</button>
             </div>

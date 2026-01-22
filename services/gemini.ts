@@ -1,12 +1,30 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MarketAnalysis } from "../types";
 
-const apiKey = process.env.API_KEY;
+// Helper to safely find the API Key in different environments (Vercel, Vite, CRA)
+const getApiKey = (): string | undefined => {
+  // Check standard process.env (Node/CRA/Webpack)
+  if (typeof process !== "undefined" && process.env) {
+    return process.env.API_KEY || 
+           process.env.REACT_APP_API_KEY || 
+           process.env.VITE_API_KEY || 
+           process.env.NEXT_PUBLIC_API_KEY;
+  }
+  // Check import.meta.env (Vite native)
+  // @ts-ignore
+  if (typeof import.meta !== "undefined" && import.meta.env) {
+    // @ts-ignore
+    return import.meta.env.VITE_API_KEY || import.meta.env.API_KEY;
+  }
+  return undefined;
+};
+
+const apiKey = getApiKey();
 const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 export const fetchMarketSentiment = async (): Promise<MarketAnalysis> => {
   if (!ai) {
-    throw new Error("API Key not found in environment variables.");
+    throw new Error("API Key not found. Please add REACT_APP_API_KEY to your Vercel Environment Variables.");
   }
 
   // Gemini 3 Flash supports search and is fast for this type of aggregation
