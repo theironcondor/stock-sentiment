@@ -9,7 +9,7 @@ import { RefreshCw, Terminal, LayoutDashboard, ListOrdered } from 'lucide-react'
 const App: React.FC = () => {
   const [data, setData] = useState<MarketAnalysis | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSentiment | null>(null);
   const [view, setView] = useState<'dashboard' | 'leaderboard'>('dashboard');
 
@@ -25,8 +25,19 @@ const App: React.FC = () => {
       }
     } catch (err: any) {
       console.error(err);
-      if (err.message && err.message.includes("API Key")) {
-        setError("Missing API Key. In Vercel, go to Settings > Environment Variables and add 'REACT_APP_API_KEY'.");
+      if (err.message === "MISSING_API_KEY") {
+        setError(
+          <div className="text-left">
+            <p className="font-bold text-red-400 mb-2">API Key Configuration Error</p>
+            <p className="mb-2">The app cannot find your <code>REACT_APP_API_KEY</code>.</p>
+            <ol className="list-decimal pl-5 space-y-1 text-sm text-gray-300">
+              <li>Go to Vercel Dashboard → Settings → Environment Variables.</li>
+              <li>Ensure <code>REACT_APP_API_KEY</code> is set correctly.</li>
+              <li><strong>IMPORTANT:</strong> Go to "Deployments" and click <strong>Redeploy</strong>.</li>
+            </ol>
+            <p className="mt-2 text-xs text-gray-400">Environment variables are only applied during the build process.</p>
+          </div>
+        );
       } else {
         setError("Failed to generate market analysis. The AI model might be busy or the search failed. Please try again.");
       }
@@ -113,8 +124,10 @@ const App: React.FC = () => {
         {error ? (
           <div className="flex items-center justify-center h-[600px] border border-red-900/50 bg-red-900/10 rounded-2xl">
             <div className="text-center max-w-lg">
-              <p className="text-red-400 font-mono mb-4">{error}</p>
-              <button onClick={handleRefresh} className="text-white underline decoration-blue-500 underline-offset-4 hover:text-blue-400">Retry Connection</button>
+              <div className="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                 {error}
+              </div>
+              <button onClick={handleRefresh} className="mt-6 px-6 py-2 bg-blue-600 rounded hover:bg-blue-500 text-white font-medium">Retry Connection</button>
             </div>
           </div>
         ) : loading && !data ? (

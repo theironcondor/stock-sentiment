@@ -1,31 +1,37 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { MarketAnalysis } from "../types";
 
-// Helper to safely find the API Key in different environments (Vercel, Vite, CRA)
+// Helper to safely find the API Key in different environments
 const getApiKey = (): string | undefined => {
-  // Check standard process.env (Node/CRA/Webpack)
+  // 1. Check standard process.env (Create React App, Webpack, Node)
   if (typeof process !== "undefined" && process.env) {
-    return process.env.API_KEY || 
-           process.env.REACT_APP_API_KEY || 
-           process.env.VITE_API_KEY || 
-           process.env.NEXT_PUBLIC_API_KEY;
+    const key = process.env.REACT_APP_API_KEY || 
+                process.env.VITE_API_KEY || 
+                process.env.NEXT_PUBLIC_API_KEY || 
+                process.env.API_KEY;
+    if (key) return key;
   }
-  // Check import.meta.env (Vite native)
+  
+  // 2. Check import.meta.env (Vite native)
   // @ts-ignore
   if (typeof import.meta !== "undefined" && import.meta.env) {
     // @ts-ignore
-    return import.meta.env.VITE_API_KEY || import.meta.env.API_KEY;
+    const key = import.meta.env.VITE_API_KEY || import.meta.env.API_KEY || import.meta.env.REACT_APP_API_KEY;
+    if (key) return key;
   }
+  
   return undefined;
 };
 
-const apiKey = getApiKey();
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
-
 export const fetchMarketSentiment = async (): Promise<MarketAnalysis> => {
-  if (!ai) {
-    throw new Error("API Key not found. Please add REACT_APP_API_KEY to your Vercel Environment Variables.");
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    console.error("Sentix Error: No API Key found in environment variables.");
+    throw new Error("MISSING_API_KEY");
   }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   // Gemini 3 Flash supports search and is fast for this type of aggregation
   const model = "gemini-3-flash-preview";
