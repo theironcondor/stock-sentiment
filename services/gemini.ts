@@ -2,43 +2,42 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { MarketAnalysis } from "../types";
 
 export const fetchMarketSentiment = async (): Promise<MarketAnalysis> => {
-  const apiKey = process.env.API_KEY;
+  // 1. Get Key
+  let apiKey = process.env.API_KEY;
+
+  // 2. Validate Existence
   if (!apiKey) {
-    throw new Error("MISSING_API_KEY");
+    console.error("Sentix Error: process.env.API_KEY is undefined.");
+    throw new Error("MISSING_API_KEY: The environment variable 'API_KEY' is not set.");
+  }
+
+  // 3. Sanitize (Crucial for Vercel/Netlify which might inject extra quotes)
+  // Remove single or double quotes, and trim whitespace.
+  apiKey = apiKey.replace(/["']/g, "").trim();
+
+  // 4. Validate Format (Basic check)
+  if (!apiKey.startsWith("AIza")) {
+    console.warn("Sentix Warning: API Key does not start with 'AIza'. This might be invalid.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
   const model = "gemini-3-flash-preview";
 
   const prompt = `
-    You are a high-frequency financial sentiment analysis engine.
+    You are a financial sentiment tracking system.
     
     TASK:
-    Analyze the last 7 days of social sentiment for S&P 500 and Nasdaq 100 tickers.
-    Focus on: Twitter ($CASHTAGS), Reddit (r/wallstreetbets, r/investing), and Financial News.
+    Analyze social media (Twitter/X, Reddit) and news sentiment for S&P 500 and Nasdaq 100 stocks over the last 7 days.
+    Compare this to the 90-day trend.
 
-    OUTPUT:
-    Return a JSON object with:
-    1. 'topPositive': Top 10 stocks with highest bullish sentiment shift.
-    2. 'topNegative': Top 10 stocks with highest bearish sentiment shift.
-    
-    For each stock:
-    - 'symbol': Ticker (e.g. NVDA)
-    - 'name': Company Name
-    - 'currentScore': Composite score (-100 to 100)
-    - 'change24h': Score change in last 24h
-    - 'change90d': Score change in last 90d
-    - 'rankChange': Change in leaderboard position (integer)
-    - 'volume': Estimated discussion volume (500-100000)
-    - 'description': One concise sentence explaining the *cause* of the sentiment.
-    - 'platformBreakdown': Sentiment scores (-100 to 100) for 'twitter', 'reddit', 'news'.
-    - 'sources': Array of 2-3 credible sources (title, url, domain).
-    - 'history': Array of 60 numbers representing daily sentiment score history (last 60 days).
+    REQUIREMENTS:
+    1. Identify the top 10 stocks with the most POSITIVE sentiment.
+    2. Identify the top 10 stocks with the most NEGATIVE sentiment.
+    3. Generate a sentiment score (-100 to 100) for each.
+    4. Provide a 'history' array of 60 data points representing the daily sentiment score for the last 60 days.
 
-    IMPORTANT:
-    - Ensure 'sources' contains actual URLs found via Google Search.
-    - Be realistic with 'history' data to show trends.
-    - Prioritize "Movers" - stocks with news or earnings.
+    OUTPUT FORMAT:
+    Return strictly raw JSON. Do not use Markdown code blocks.
   `;
 
   try {
@@ -143,11 +142,16 @@ export const fetchMarketSentiment = async (): Promise<MarketAnalysis> => {
     });
 
     const text = response.text;
-    if (!text) throw new Error("No data returned from Gemini");
+    if (!text) throw new Error("API returned empty response");
 
-    return JSON.parse(text) as MarketAnalysis;
-  } catch (error) {
-    console.error("Gemini Service Error:", error);
+    // 5. Robust JSON Parsing
+    // Strip markdown code blocks if they exist (e.g., ```json ... ```)
+    const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    return JSON.parse(cleanText) as MarketAnalysis;
+  } catch (error: any) {
+    console.error("Sentix Service Error:", error);
+    // Propagate the exact error message for UI display
     throw error;
   }
 };

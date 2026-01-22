@@ -4,19 +4,17 @@ import { fetchMarketSentiment } from './services/gemini';
 import StockList from './components/StockList';
 import DetailPanel from './components/DetailPanel';
 import LeaderboardView from './components/LeaderboardView';
-import { RefreshCw, Terminal, LayoutDashboard, ListOrdered, Activity, AlertTriangle } from 'lucide-react';
-
-// --- Main App Component ---
+import { RefreshCw, Terminal, LayoutDashboard, ListOrdered, Activity, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 const App: React.FC = () => {
   // Data State
   const [data, setData] = useState<MarketAnalysis | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
-  const [fetchError, setFetchError] = useState<React.ReactNode | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockSentiment | null>(null);
   const [view, setView] = useState<'dashboard' | 'leaderboard'>('dashboard');
 
-  // 1. Data Loading Effect
+  // Data Loading
   const loadData = useCallback(async () => {
     setLoading(true);
     setFetchError(null);
@@ -27,15 +25,15 @@ const App: React.FC = () => {
         setSelectedStock(result.topPositive[0]);
       }
     } catch (err: any) {
-      console.error("Fetch Error:", err);
-      // Transient Error - stay on dashboard but show error
-      setFetchError(err.message || "Failed to analyze market data.");
+      console.error("App Fetch Error:", err);
+      // Capture the exact error message
+      setFetchError(err.message || "Unknown error occurred while fetching market data.");
     } finally {
       setLoading(false);
     }
   }, [selectedStock]);
 
-  // Trigger load on mount
+  // Initial Load
   useEffect(() => {
     if (!data) {
       loadData();
@@ -46,11 +44,8 @@ const App: React.FC = () => {
     loadData();
   };
 
-  // 2. Loading State (Initial or Refresh)
-  // We overlay this on the dashboard if data exists, otherwise show skeleton
   const isInitialLoading = loading && !data;
 
-  // 3. Dashboard
   return (
     <div className="min-h-screen flex flex-col font-sans text-gray-100 bg-gray-900 selection:bg-blue-500/30">
       
@@ -118,15 +113,23 @@ const App: React.FC = () => {
         
         {fetchError && !data && (
            <div className="flex items-center justify-center h-[600px] border border-red-900/50 bg-red-900/10 rounded-2xl p-6">
-            <div className="text-center max-w-xl w-full text-red-300">
-              <AlertTriangle className="mx-auto mb-4" size={48} />
-              <p className="text-lg font-bold mb-2">Analysis Failed</p>
-              <p className="mb-6 font-mono text-sm">{fetchError}</p>
+            <div className="text-center max-w-xl w-full text-red-200">
+              <div className="inline-flex p-4 bg-red-900/40 rounded-full mb-6 ring-1 ring-red-500/50">
+                <ShieldAlert size={48} className="text-red-500" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2 text-white">System Malfunction</h2>
+              <div className="bg-black/30 p-4 rounded-lg border border-red-900/50 mb-6 text-left">
+                <p className="font-mono text-xs text-red-400 uppercase mb-1">Error Log:</p>
+                <code className="text-sm font-mono break-all text-red-200">{fetchError}</code>
+              </div>
+              <p className="text-gray-400 mb-6">
+                Please verify your <code>API_KEY</code> environment variable in your Vercel project settings.
+              </p>
               <button 
                 onClick={handleRefresh} 
-                className="px-6 py-2 bg-red-900/40 hover:bg-red-900/60 border border-red-700 rounded text-white transition-colors"
+                className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-all shadow-lg shadow-red-900/20"
               >
-                Try Again
+                Retry Connection
               </button>
             </div>
           </div>
@@ -144,7 +147,7 @@ const App: React.FC = () => {
               <div className="h-full bg-gray-800 rounded-xl border border-gray-700 p-8">
                  <div className="flex justify-center items-center h-full flex-col gap-4 text-gray-600">
                     <Activity size={64} className="animate-bounce" />
-                    <p className="font-mono text-sm tracking-wider">GENERATING MARKET ANALYSIS...</p>
+                    <p className="font-mono text-sm tracking-wider">ESTABLISHING UPLINK...</p>
                  </div>
               </div>
             </div>
