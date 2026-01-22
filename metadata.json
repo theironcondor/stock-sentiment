@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Sentix - Market Sentiment Tracker",
+  "description": "Real-time social media sentiment analysis for S&P 500 and Nasdaq 100 stocks, tracking incremental changes and historical trends over the last 90 days.",
+  "requestFramePermissions": []
+}
